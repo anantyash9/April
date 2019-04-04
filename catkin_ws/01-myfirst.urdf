@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<robot name="myfirst">
+    <material name="white">
+    <color rgba="1 1 1 1"/>
+  </material>
+
+  <link name="bot">
+    <visual>
+      <geometry>
+        <box size=" 0.45 0.56 0.91"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.455"/>
+      <material name="white"/>
+    </visual>
+  </link>
+</robot>
