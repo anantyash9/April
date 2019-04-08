@@ -48,7 +48,7 @@ def callback(data):
     else:
         a = numpy.array((x, y))
         d = dist(a, prev)
-        if d >=0.3:
+        if d >=0.1:
             data.header.seq = i
             i += 1
             path.poses.append(data)

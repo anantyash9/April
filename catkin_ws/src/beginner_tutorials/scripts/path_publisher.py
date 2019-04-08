@@ -1,37 +1,4 @@
 #!/usr/bin/env python
-# Software License Agreement (BSD License)
-#
-# Copyright (c) 2008, Willow Garage, Inc.
-# All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions
-# are met:
-#
-#  * Redistributions of source code must retain the above copyright
-#    notice, this list of conditions and the following disclaimer.
-#  * Redistributions in binary form must reproduce the above
-#    copyright notice, this list of conditions and the following
-#    disclaimer in the documentation and/or other materials provided
-#    with the distribution.
-#  * Neither the name of Willow Garage, Inc. nor the names of its
-#    contributors may be used to endorse or promote products derived
-#    from this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-# COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-# Revision $Id$
 
 ## Simple talker demo that published std_msgs/Strings messages
 ## to the 'chatter' topic
@@ -41,18 +8,71 @@ from std_msgs.msg import String
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 import pickle
+from threading import Thread
+
+from flask import Flask
+from flask_sockets import Sockets
+
+from gevent import pywsgi
+from geventwebsocket.handler import WebSocketHandler
+app = Flask(__name__)
+sockets = Sockets(app)
+rospy.init_node('path_publisher', anonymous=True)
+
+state=0
+to_state=0
+state_chart={'Aquafina':1,'Good':2,'Lays':3,'return':0}
+
+
+@sockets.route('/')
+def echo_socket(ws):
+    global to_state
+    while not ws.closed:
+        message = ws.receive()
+        print (message)
+        if message in state_chart:
+            to_state=state_chart[message]
+
+
+server = pywsgi.WSGIServer(('', 5000), app, handler_class=WebSocketHandler)
+path=Path()
 def talker():
+    global path
     pub2 = rospy.Publisher('path', Path, queue_size=1)
-    rospy.init_node('path_publisher', anonymous=True)
-    rate = rospy.Rate(1) # 1hz
+
+    rate = rospy.Rate(10) # 1hz
     while not rospy.is_shutdown():
-        pfile = open('path', 'rb')
-        path=pickle.load(pfile)
-        pub2.publish(path)
-        rate.sleep()
+        path.header.stamp = rospy.Time.now()
+        if len(path.poses)>0:
+            for i in range(len(path.poses)):
+                path.poses[i].header.stamp=rospy.Time.now()
+            pub2.publish(path)
+            rate.sleep()
+
+def selector():
+    global path
+    pfile = open('path', 'rb')
+    path_b = pickle.load(pfile)
+    pfile = open('path_forward', 'rb')
+    path_f = pickle.load(pfile)
+    i=None
+    while not rospy.is_shutdown():
+        if to_state ==1:
+            path=path_f
+            print('forward path selected')
+        elif to_state==2:
+            path=path_b
+            print ('backward path seclected')
+
+
 
 if __name__ == '__main__':
     try:
-        talker()
+        Thread(target=selector, args=()).start()
+        Thread(target=talker, args=()).start()
+        server.serve_forever()
+
+
+
     except rospy.ROSInterruptException:
         pass

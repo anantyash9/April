@@ -8,26 +8,29 @@ from geometry_msgs.msg import PoseStamped
 import thread
 import urllib2
 from time import sleep
+import numpy
 import time
+from tf.transformations import euler_from_quaternion
 move=True
-avg = 25
+avg = 30
 right,left = 0,0
 rpwm=0
 lpwm=0
-kp= 20
-perror=0
-kd=2
+kp= 40
 roll=0
-target_roll=0.9983
-def pid(data):
-    global right,left,perror
-    cte=data.data
-    error= cte*kp - kd * (cte - perror)
-    right=avg+error-2
-    left=avg-error+2
-    left=max(min(100,left),-100)
-    right = max(min(100, right), -100)
-    perror=cte
+target_roll=0
+cte=0
+def get_cte(data):
+    global cte
+    cte = data.data
+
+def pid():
+    global right,left
+    error= cte*kp
+    r=avg+error-4
+    l=avg-error+4
+    left=max(min(100,l),-100)
+    right = max(min(100, r), -100)
 
 def can_bot_move(data):
     global move
@@ -35,12 +38,19 @@ def can_bot_move(data):
 
 def update_pose(data):
     global roll
-    roll=data.pose.orientation.z
+    qList = [data.pose.orientation.x, data.pose.orientation.y, data.pose.orientation.z, data.pose.orientation.w]
+    (y, p, r) = euler_from_quaternion(qList)
+    roll = numpy.rad2deg(r)
+
+def update_angle(data):
+    global target_roll
+    target_roll = data.data
 
 def node():
-    #rospy.Subscriber("cte", Float32, pid)
+    rospy.Subscriber("cte", Float32, get_cte)
     rospy.Subscriber("move", Bool, can_bot_move)
     rospy.Subscriber('line',PoseStamped,update_pose)
+    rospy.Subscriber('angle', Float32, update_angle )
     rospy.spin()
 def disp():
     global lpwm,rpwm
@@ -55,25 +65,40 @@ def disp():
 
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_address = ('192.168.254.2', 50000)
+server_address = ('192.168.254.2', 50001)
 sock.connect(server_address)
 
 def align_right():
     global right,left
     while not rospy.is_shutdown():
-        print(lpwm,rpwm)
+        #print(lpwm,rpwm)
         print(roll,'            ',target_roll)
-        while round(target_roll,2)!=round(roll,2):
-            print('in')
-            if move:
-                left = 30
-                right = -30
-            else:
-                left = 0
-                right = 0
+        while  not (target_roll-6 <= roll <= target_roll+6 ):
+            error=roll-target_roll
+            if abs(error)>180:
+                if error <0:
+                    error = error +360
+                else:
+                    error = error - 360
+            #print(roll, '            ', target_roll , '            ', error )
 
-        left=0
-        right=0
+            if error >0:
+                if abs(error) >= 50:
+                    left = 30
+                    right = -30
+                else:
+                    left = avg+10
+                    right = 0
+            else:
+                if abs(error) >= 50:
+                    left = -30
+                    right = 30
+                else:
+                    left = 0
+                    right = avg+10
+
+        pid()
+
 
 
 

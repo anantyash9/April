@@ -13,8 +13,9 @@ import thread
 
 
 
-state_t=True
-state_d= True
+state_t=False
+state_d=False
+state_e=False
 def dist(x,y):
     return numpy.sqrt(numpy.sum((x-y)**2))
 
@@ -34,19 +35,28 @@ def check_dist(data):
     else:
         state_d=True
 
+def check_end(data):
+    global  state_e
+    if (data.data<0.2):
+        state_e = False
+    else:
+        state_e=True
+
 
 def node():
 
     global state
     rospy.Subscriber("line", PoseStamped, check_time)
     rospy.Subscriber("dist", Float32, check_dist)
+    rospy.Subscriber("dist_end", Float32, check_end)
     rospy.spin()
 def publis():
     pub = rospy.Publisher('move', Bool, queue_size=1)
     rate = rospy.Rate(10)  # 1hz
     while not rospy.is_shutdown():
         d=Bool()
-        d.data=state_d and state_t
+        d.data=state_d and state_t and state_e
+        print('distance : ',state_d,'time : ',state_t,'dist_end : ',state_e)
         pub.publish(d)
         rate.sleep()
 
