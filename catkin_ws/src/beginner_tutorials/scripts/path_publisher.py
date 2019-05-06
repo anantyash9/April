@@ -9,10 +9,10 @@ from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 import pickle
 from threading import Thread
-
+import glob
 from flask import Flask
 from flask_sockets import Sockets
-
+import numpy
 from gevent import pywsgi
 from geventwebsocket.handler import WebSocketHandler
 app = Flask(__name__)
@@ -21,7 +21,8 @@ rospy.init_node('path_publisher', anonymous=True)
 
 state=0
 to_state=0
-state_chart={'Aquafina':1,'Good':2,'Lays':3,'return':0}
+x,y=0,0
+state_chart={'Aquafina':(0.68,2.47),'Good':(-0.638451141768,2.397513653),'Lays':(5,5),'reverse':(-1.60,5.32)}
 
 
 @sockets.route('/')
@@ -31,7 +32,7 @@ def echo_socket(ws):
         message = ws.receive()
         print (message)
         if message in state_chart:
-            to_state=state_chart[message]
+            selector(message)
 
 
 server = pywsgi.WSGIServer(('', 5000), app, handler_class=WebSocketHandler)
@@ -49,26 +50,57 @@ def talker():
             pub2.publish(path)
             rate.sleep()
 
-def selector():
-    global path
-    pfile = open('path', 'rb')
-    path_b = pickle.load(pfile)
-    pfile = open('path_forward', 'rb')
-    path_f = pickle.load(pfile)
-    i=None
-    while not rospy.is_shutdown():
-        if to_state ==1:
-            path=path_f
-            print('forward path selected')
-        elif to_state==2:
-            path=path_b
-            print ('backward path seclected')
+def dist(x,y):
+    return numpy.sqrt(numpy.sum((x-y)**2))
 
+def selector(item):
+    global path
+    files=(glob.glob("./options/*"))
+    distance=100
+    path_temp=Path()
+    for i in range(len(files)):
+        c=0
+        p= open(files[i], 'rb')
+        path_t = pickle.load(p)
+        p.close()
+        x_end=path_t.poses[-1].pose.position.x
+        print(x_end,type(x_end))
+        y_end=path_t.poses[-1].pose.position.y
+        print(y_end, type(y_end))
+        a = numpy.array(state_chart[item])
+        b = numpy.array((x_end,y_end))
+        temp=dist(a,b)
+        c+=temp
+        x_beg = path_t.poses[0].pose.position.x
+        y_beg = path_t.poses[0].pose.position.y
+        a = numpy.array((x,y))
+        b = numpy.array((x_beg, y_beg))
+        temp = dist(a, b)
+        c+=temp
+        print('Path no ', i, '      a+b distance  ', c)
+        if distance>c:
+            distance=c
+            print(path_t)
+            path_temp=path_t
+
+    path = path_temp
+
+
+def updatexy(data):
+    global x,y
+    x=data.pose.position.x
+    y=data.pose.position.y
+
+
+
+def node():
+    rospy.Subscriber("line", PoseStamped, updatexy)
+    rospy.spin()
 
 
 if __name__ == '__main__':
     try:
-        Thread(target=selector, args=()).start()
+        Thread(target=node, args=()).start()
         Thread(target=talker, args=()).start()
         server.serve_forever()
 

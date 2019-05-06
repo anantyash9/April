@@ -83,18 +83,18 @@ def main():
                 #
                 # print('Detection {} of {}:'.format(i + 1, num_detections))
                 # print()
-                print('x', coordinate[0], 'y', coordinate[1], 'z', coordinate[2])
+                #print('x', coordinate[0], 'y', coordinate[1], 'z', coordinate[2])
                 # print()
-                new_coord = transformRx(53, coordinate)
+                new_coord = transformRx(56, coordinate)
                 position['tag0'] = new_coord
-                # print('x', new_coord[0], 'y', new_coord[1], 'z', new_coord[2])
-                # print()
+                print('x', new_coord[0], 'y', new_coord[1], 'z', new_coord[2])
+                print()
                 roll = math.degrees(math.atan2(pose[0][1] , pose[0][0]))
                 yaw = math.degrees(math.atan((-1 * pose[2][0]) / math.sqrt((pose[2][1]) ** 2 + (pose[2][2]) ** 2)))
                 pitch = math.degrees(math.atan(pose[2][1] / pose[2][2]))
-                position['roll'] = roll + 90
+                position['roll'] = roll - 90
                 position['time'] = rospy.Time.now()
-                print('Roll ', roll+90)
+                print('Roll ', roll-90)
                 print('Yaw ', yaw)
                 print('Pitch ', pitch)
                 print()

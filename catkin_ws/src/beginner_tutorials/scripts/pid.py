@@ -11,6 +11,13 @@ from time import sleep
 import numpy
 import time
 from tf.transformations import euler_from_quaternion
+
+
+from signal import signal, SIGPIPE, SIG_DFL
+signal(SIGPIPE,SIG_DFL)
+
+
+
 move=True
 avg = 30
 right,left = 0,0
@@ -65,7 +72,7 @@ def disp():
 
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_address = ('192.168.254.2', 50001)
+server_address = ('192.168.1.96', 50001)
 sock.connect(server_address)
 
 def align_right():
@@ -73,7 +80,7 @@ def align_right():
     while not rospy.is_shutdown():
         #print(lpwm,rpwm)
         print(roll,'            ',target_roll)
-        while  not (target_roll-6 <= roll <= target_roll+6 ):
+        while  not (target_roll-10 <= roll <= target_roll+10 ):
             error=roll-target_roll
             if abs(error)>180:
                 if error <0:
@@ -108,8 +115,12 @@ def hitFlask():
             message = str(lpwm) + ":" + str(rpwm)
             if not( lpwm== 0 and rpwm==0):
                 print message
-            sock.sendall(message)
-            sleep(0.1)
+            try:
+                sock.sendall(message)
+                sleep(0.3)
+            except Exception as e:
+                print(e)
+                pass
     finally:
         sock.close()
 
